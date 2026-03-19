@@ -1,5 +1,5 @@
 import express from "express";
-import Prescription from "../models/Prescription.js";
+import Prescription from "../models/Prescription";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 
@@ -43,7 +43,7 @@ router.get("/get-prescriptions/:patientId", async (req, res) => {
 // 📌 Send Prescription via Email
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
-  port: process.env.SMTP_PORT,
+  port: parseInt(process.env.SMTP_PORT || "587"),
   secure: false,
   auth: {
     user: process.env.SMTP_USER,
@@ -56,12 +56,14 @@ router.post("/send-prescription", async (req, res) => {
   try {
     const { patientEmail, prescriptionId } = req.body;
 
-    const prescription = await Prescription.findById(prescriptionId).populate("doctor", "name email");
+    const prescription = await Prescription.findById(prescriptionId).populate<{ doctor: { name: string, email: string } }>("doctor", "name email");
 
     if (!prescription) return res.status(404).json({ message: "❌ Prescription not found" });
 
+    const doctorName = (prescription.doctor as any)?.name || "Doctor";
+
     const emailContent = `
-      📜 **Prescription from Dr. ${prescription.doctor.name}**  
+      📜 **Prescription from Dr. ${doctorName}**  
       - **Patient**: ${patientEmail}  
       - **Medicines**: ${prescription.medicines.map(m => `${m.name} - ${m.dosage} (${m.frequency})`).join(", ")}  
       - **Notes**: ${prescription.notes}  
