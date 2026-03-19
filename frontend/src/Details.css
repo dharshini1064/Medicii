@@ -1,0 +1,77 @@
+.details-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 40px;
+  background: var(--panel-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: var(--shadow-sm);
+}
+
+.details-container h2, .details-container h3 {
+  text-align: left;
+  margin-bottom: 24px;
+  font-weight: 700;
+}
+
+.details-container label {
+  display: block;
+  font-weight: 600;
+  margin-top: 20px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: var(--text-active);
+}
+
+.details-container input, .details-container select {
+  width: 100%;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid #E2E8F0;
+  border-radius: 16px;
+  font-size: 16px;
+  transition: all 0.3s ease;
+}
+
+.details-container input:focus, .details-container select:focus {
+  border-color: var(--accent-blue);
+  background: white;
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+.medicine-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.details-container button {
+  padding: 14px 24px;
+  border-radius: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: none;
+  font-size: 16px;
+}
+
+.btn-add {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--accent-blue);
+  margin-top: 16px;
+}
+
+.btn-save {
+  background: var(--accent-blue);
+  color: white;
+  margin-top: 32px;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.btn-save:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+}
