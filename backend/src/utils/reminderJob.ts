@@ -54,7 +54,9 @@ export const initReminderJob = () => {
         }
       }
 
-      // 4. Logic: If no action in 30 minutes -> mark as "missed"
+      // AUTO-MISS LOGIC REMOVED:
+      // Allow user to mark doses taken even if they are late.
+      /*
       const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000);
       await IntakeLog.updateMany(
         {
@@ -63,6 +65,7 @@ export const initReminderJob = () => {
         },
         { status: "missed" }
       );
+      */
 
     } catch (error) {
       console.error("Error in reminder job:", error);

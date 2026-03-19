@@ -21,6 +21,7 @@ import User from "./models/User";
 import EmergencyAlert from "./models/EmergencyAlert";
 import Prescription from "./models/Prescription";
 import IntakeLog from "./models/IntakeLog";
+import Schedule from "./models/Schedule";
 
 // Utils
 import { initReminderJob } from "./utils/reminderJob";
@@ -33,8 +34,18 @@ const app = express();
 const PORT = 5001;
 console.log("App initialized");
 
-app.use(cors());
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
 app.use(express.json());
+
+// **🔹 Request Logger (For Debugging)**
+app.use((req, res, next) => {
+  console.log(`📡 [${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
+  next();
+});
 
 // **🔹 MongoDB Connection**
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/medicine_tracker";
@@ -61,7 +72,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// **📌 New Modules**
+// **📌 Route Registration**
 app.use("/api/medications", medicationRoutes);
 app.use("/api/ai", aiRoutes);
 
@@ -80,21 +91,67 @@ app.post("/api/logs/take", async (req, res) => {
   }
 });
 
+app.delete("/api/logs/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`🗑️ DELETE Log Request hit for ID: ${id}`);
+    const deleted = await IntakeLog.findByIdAndDelete(id);
+    if (!deleted) {
+       console.log("⚠️ Log not found in DB");
+       return res.status(404).json({ message: "Log not found" });
+    }
+    res.status(204).send();
+  } catch (error) {
+    console.error("Delete log error:", error);
+    res.status(500).json({ message: "Error deleting log", error });
+  }
+});
+
 app.get("/api/logs/today", async (req, res) => {
   try {
     const { userId } = req.query;
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
+    if (!userId) return res.status(400).json({ message: "userId required" });
 
-    const logs = await IntakeLog.find({
-      userId,
+    const uId = new mongoose.Types.ObjectId(userId as string);
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
+
+    // 1. Fetch current logs with deep metadata
+    let logs = await IntakeLog.find({
+      userId: uId,
       dueAt: { $gte: todayStart, $lte: todayEnd }
-    }).populate({
-      path: 'scheduleId',
-      populate: { path: 'medicationId' }
-    });
+    }).populate({ path: 'scheduleId', populate: { path: 'medicationId' } });
+
+    // 2. GHOST CLEANUP: Remove logs that point to deleted medications or schedules
+    const validLogs = logs.filter(log => (log.scheduleId as any) && (log.scheduleId as any).medicationId);
+    if (validLogs.length !== logs.length) {
+       // Silently remove the broken records from the DB so they don't haunt the UI
+       const brokenIds = logs.filter(log => !(log.scheduleId as any) || !(log.scheduleId as any).medicationId).map(l => l._id);
+       await IntakeLog.deleteMany({ _id: { $in: brokenIds } });
+       logs = validLogs;
+    }
+
+    // 3. SELF-HEALING: If no valid logs but have active schedules, generate them!
+    if (logs.length === 0) {
+      const schedules = await Schedule.find({ userId: uId, active: true }).populate('medicationId');
+      for (const sch of schedules) {
+        if (!(sch as any).medicationId) continue; // Skip broken schedules
+        
+        const newLog = new IntakeLog({
+          userId: uId,
+          scheduleId: sch._id,
+          dueAt: new Date(todayStart.getTime() + (8 * 60 * 60 * 1000)), // Default 8 AM
+          status: "pending",
+          source: "auto-fix"
+        });
+        await newLog.save();
+      }
+      // Final re-fetch for the UI
+      logs = await IntakeLog.find({
+        userId: uId,
+        dueAt: { $gte: todayStart, $lte: todayEnd }
+      }).populate({ path: 'scheduleId', populate: { path: 'medicationId' } });
+    }
     
     res.json(logs);
   } catch (error) {

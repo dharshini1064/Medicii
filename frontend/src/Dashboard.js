@@ -3,11 +3,16 @@ import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
-const API = process.env.REACT_APP_API_URL || "http://localhost:5001";
+const API = "http://127.0.0.1:5001";
 
 function Dashboard() {
   const navigate = useNavigate();
-  const userId = localStorage.getItem("userId");
+  // SANITY CHECK: Forcibly clean the userId to prevent [object Object] errors
+  let userId = localStorage.getItem("userId");
+  if (userId && userId.includes("[object")) {
+    userId = null;
+    localStorage.removeItem("userId");
+  }
   const userName = localStorage.getItem("userName") || "User";
 
   const [logs, setLogs] = useState([]);
@@ -111,6 +116,27 @@ function Dashboard() {
       showToast("🗑️ Deleted");
       fetchMeds();
     } catch (e) { console.error("Delete error", e); }
+  };
+
+  const deleteLog = async (id) => {
+    if (!id) return;
+    // 1. Instant optimistic removal
+    setLogs(prev => prev.filter(l => l._id !== id));
+    showToast("🗑️ Removing entry...");
+
+    try {
+      // 2. Direct Backend Call
+      const res = await axios.delete(`${API}/api/logs/${id}`);
+      if (res.status === 204 || res.status === 200) {
+        showToast("✅ Discarded");
+      } else {
+        throw new Error("Deletion failed on server");
+      }
+    } catch (e) {
+      console.error("Critical Delete Error:", e);
+      window.alert("⚠️ Could not delete. Is the server running?");
+      fetchLogs(); // Recovery
+    }
   };
 
   const showToast = (msg) => {
@@ -272,29 +298,38 @@ function Dashboard() {
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 {logs.map(log => (
-                  <div key={log._id} className="inner-card" style={{ border: `1px solid ${log.status === "taken" ? "#10B981" : log.status === "missed" ? "#EF4444" : "var(--border-glass)"}` }}>
+                  <div key={log._id} className="inner-card" 
+                    style={{ 
+                      border: `1px solid ${log.status === "taken" ? "#10B981" : log.status === "missed" ? "#EF4444" : "var(--border-glass)"}`,
+                      cursor: 'pointer' 
+                    }}
+                    onClick={() => log.status === "missed" ? markAs(log._id, "taken") : log.status === "taken" ? markAs(log._id, "missed") : null}
+                  >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                       <div>
-                        <div style={{ fontWeight: 700, fontSize: 14 }}>
+                        <div style={{ fontWeight: 800, fontSize: 15, color: log.status === "taken" ? "#065F46" : "inherit" }}>
                           {log.scheduleId?.medicationId?.name || "Unknown Med"}
                         </div>
                         <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
                           {log.scheduleId?.timeOfDay} • {log.scheduleId?.medicationId?.dosage} {log.scheduleId?.medicationId?.unit}
                         </div>
                       </div>
-                      <span className={`pill-status ${log.status === 'taken' ? 'pill-positive' : log.status === 'missed' ? 'pill-negative' : ''}`}
-                        style={log.status === "pending" ? { background: "var(--accent-amber)", color: "white" } : {}}>
-                        {log.status === "taken" ? "✓" : log.status === "missed" ? "✗" : "⏳"}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span className={`pill-status ${log.status === 'taken' ? 'pill-positive' : log.status === 'missed' ? 'pill-negative' : ''}`}
+                          style={log.status === "pending" ? { background: "var(--accent-amber)", color: "white" } : {}}>
+                          {log.status === "taken" ? "✓" : log.status === "missed" ? "✗" : "⏳"}
+                        </span>
+                        <button onClick={(e) => { e.stopPropagation(); deleteLog(log._id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '15px', opacity: 0.3 }}>🗑️</button>
+                      </div>
                     </div>
                     {log.status === "pending" && (
                       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                        <button onClick={() => markAs(log._id, "taken")}
-                          style={{ flex: 1, padding: "9px", borderRadius: 10, border: "none", background: "var(--accent-blue)", color: "white", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
+                        <button onClick={(e) => { e.stopPropagation(); markAs(log._id, "taken"); }}
+                          style={{ flex: 1, padding: "9px", borderRadius: 10, border: "none", background: "var(--accent-blue)", color: "white", fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
                           Take
                         </button>
-                        <button onClick={() => markAs(log._id, "skipped")}
-                          style={{ padding: "9px 12px", borderRadius: 10, border: "1px solid var(--border-glass)", background: "transparent", color: "var(--text-muted)", cursor: "pointer", fontSize: 13 }}>
+                        <button onClick={(e) => { e.stopPropagation(); markAs(log._id, "skipped"); }}
+                          style={{ padding: "9px 12px", borderRadius: 10, border: "1px solid var(--border-glass)", background: "transparent", color: "var(--text-muted)", cursor: 'pointer', fontSize: 13 }}>
                           Skip
                         </button>
                       </div>
@@ -311,6 +346,35 @@ function Dashboard() {
             >
               + Add Medication
             </motion.button>
+          </motion.div>
+
+          {/* ✅ ACTIVITY TRACKER / MARKED DONE HISTORY */}
+          <motion.div className="glass-card-premium" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }} style={{ marginTop: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 16 }}>Activity Log (Marked Done)</h3>
+              <span className="pill-status" style={{ background: "#DCFCE7", color: "#166534", fontSize: 10 }}>HISTORY</span>
+            </div>
+            
+            <div style={{ maxHeight: 250, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+               {logs.filter(l => l.status === "taken").length === 0 ? (
+                 <div style={{ textAlign: "center", padding: "24px 0" }}>
+                   <p style={{ fontSize: 12, color: "var(--text-muted)" }}>No doses marked as done yet.</p>
+                 </div>
+               ) : (
+                 logs.filter(l => l.status === "taken").map(log => (
+                   <div key={log._id + "_hist"} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", background: "rgba(255,255,255,0.4)", borderRadius: 12, border: "1px solid rgba(0,0,0,0.02)" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                         <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--accent-blue)' }}></div>
+                         <div>
+                            <div style={{ fontWeight: 700, fontSize: 13 }}>{log.scheduleId?.medicationId?.name || "Medicine"}</div>
+                            <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{new Date(log.loggedAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Completed</div>
+                         </div>
+                      </div>
+                      <span style={{ fontSize: 14 }}>✅</span>
+                   </div>
+                 ))
+               )}
+            </div>
           </motion.div>
         </div>
       </div>

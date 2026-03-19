@@ -3,6 +3,8 @@ import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
+const API_BASE = (process.env.REACT_APP_API_URL || "http://localhost:5001") + "/api";
+
 const AIScheduleAssistant = () => {
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
@@ -11,113 +13,81 @@ const AIScheduleAssistant = () => {
   const userId = localStorage.getItem("userId");
 
   useEffect(() => {
-    if (!userId) {
-      navigate('/login');
-    }
-  }, [userId, navigate]);
+    if (!userId) navigate('/login');
+  }, [userId]);
 
   const handleGenerate = async () => {
     setLoading(true);
-    setDraft(null);
     try {
-      const res = await axios.post(`${process.env.REACT_APP_API_URL || "http://localhost:5001"}/api/ai/schedule`, { prompt });
-      setDraft(res.data);
-    } catch (error) {
-      console.error("Failed to generate schedule", error);
-    } finally {
-      setLoading(false);
-    }
+      const res = await axios.post(`${API_BASE}/ai/schedule`, { prompt });
+      setDraft(res.data.draftSchedule || []);
+    } catch (e) {} finally { setLoading(false); }
+  };
+
+  const updateDraft = (idx, field, val) => {
+    const updated = [...draft];
+    updated[idx][field] = val;
+    setDraft(updated);
   };
 
   const handleApprove = async () => {
     setLoading(true);
     try {
-      await axios.post(`${process.env.REACT_APP_API_URL || "http://localhost:5001"}/api/ai/schedule/approve`, {
-        draftSchedule: draft.draftSchedule,
-        userId: userId
-      });
-      alert("✅ Schedule Approved & Successfully Saved! Check your dashboard.");
+      await axios.post(`${API_BASE}/ai/schedule/approve`, { draftSchedule: draft, userId });
       navigate("/dashboard");
-    } catch (error) {
-      console.error("Approval failed", error);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) {} finally { setLoading(false); }
   };
 
   return (
-    <div className="ai-assistant-root" style={{ maxWidth: '800px', margin: '0 auto' }}>
+    <div className="ai-assistant-root" style={{ maxWidth: '850px', margin: '0 auto', padding: '60px 20px' }}>
       <header className="header-row">
-        <div className="welcome-text">
-          <h1>✨ AI Schedule Assistant</h1>
-          <p style={{ color: 'var(--text-muted)' }}>Describe your medications and routine below.</p>
-        </div>
+        <h1>✨ AI Schedule Assistant</h1>
+        <p className="label-cap">Describe your routine and let AI build the cards.</p>
       </header>
 
-      <motion.div className="glass-card-premium" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <h3 style={{ marginBottom: '16px', fontSize: '18px' }}>Your Routine</h3>
+      <div className="glass-card-premium" style={{ marginBottom: '40px' }}>
         <textarea
-          style={{ width: '100%', height: '140px', background: 'rgba(0,0,0,0.05)', color: 'var(--text-active)', border: '1px solid var(--border-glass)', borderRadius: '16px', padding: '16px', fontSize: '15px', resize: 'none', outline: 'none' }}
-          placeholder="e.g. I take Metformin 500mg in the morning and Gliclazide 80mg at night. I also have high BP so I take Lisinopril."
+          style={{ width: '100%', height: '140px', background: 'rgba(0,0,0,0.02)', border: '1px solid #E2E8F0', borderRadius: '16px', padding: '20px', fontSize: '15px', outline: 'none' }}
+          placeholder="e.g. I take 500mg Metformin twice daily. Once in morning, once at night."
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
         />
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
-          <button 
-            onClick={handleGenerate} 
-            disabled={loading || !prompt}
-            style={{ padding: '14px 40px', borderRadius: '14px', border: 'none', background: 'var(--accent-blue)', color: 'white', fontWeight: 700, cursor: (loading || !prompt) ? 'not-allowed' : 'pointer' }}
-          >
-            {loading ? "AI is thinking..." : "Generate Plan ✨"}
+          <button className="btn-primary" onClick={handleGenerate} disabled={loading || !prompt} style={{ padding: '16px 40px' }}>
+            {loading ? "Generating..." : "Generate Draft ✨"}
           </button>
         </div>
-      </motion.div>
+      </div>
 
       <AnimatePresence>
         {draft && (
-          <motion.div 
-            className="glass-card-premium" 
-            style={{ marginTop: '32px', border: '1px solid var(--accent-blue)' }}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h3 style={{ margin: 0 }}>Proposed Schedule</h3>
-              <span className="pill-status" style={{ background: 'var(--accent-blue)', color: 'white' }}>DRAFT</span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
-              {draft.draftSchedule.map((item, idx) => (
-                <div key={idx} className="inner-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: '16px' }}>{item.medicine}</div>
-                    <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>{item.dosage} • {item.timeOfDay} • {item.frequency}</div>
-                  </div>
-                  <div style={{ fontSize: '12px', color: 'var(--accent-teal)', fontWeight: 700 }}>{item.daysOfWeek?.length === 7 ? 'DAILY' : 'SCHEDULED'}</div>
+          <motion.div className="glass-card-premium" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={{ border: '2px solid var(--accent-blue)' }}>
+            <h3 style={{ marginBottom: '24px' }}>Draft Proposal (Editable) ✏️</h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '32px' }}>
+              {draft.map((item, idx) => (
+                <div key={idx} style={{ padding: '16px 20px', background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(8px)', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.1)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                   <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '16px', alignItems: 'flex-end' }}>
+                      <div>
+                         <label style={{ fontSize: '10px', fontWeight: 800, color: '#38BDF8', display: 'block', marginBottom: '6px', letterSpacing: '0.05em' }}>MEDICINE NAME</label>
+                         <input placeholder="e.g. Advil" value={item.medicine} onChange={e => updateDraft(idx, 'medicine', e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.2)', outline: 'none', background: 'rgba(255,255,255,1)', color: '#1E293B', fontSize: '14px', fontWeight: 600 }} />
+                      </div>
+                      <div>
+                         <label style={{ fontSize: '10px', fontWeight: 800, color: '#38BDF8', display: 'block', marginBottom: '6px', letterSpacing: '0.05em' }}>DOSAGE</label>
+                         <input placeholder="200mg" value={item.dosage} onChange={e => updateDraft(idx, 'dosage', e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.2)', outline: 'none', background: 'rgba(255,255,255,1)', color: '#1E293B', fontSize: '14px', fontWeight: 600 }} />
+                      </div>
+                      <div>
+                         <label style={{ fontSize: '10px', fontWeight: 800, color: '#38BDF8', display: 'block', marginBottom: '6px', letterSpacing: '0.05em' }}>TIME</label>
+                         <input type="time" value={item.timeOfDay} onChange={e => updateDraft(idx, 'timeOfDay', e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.2)', outline: 'none', background: 'rgba(255,255,255,1)', color: '#1E293B', fontSize: '14px', fontWeight: 600 }} />
+                      </div>
+                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="inner-card" style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', marginBottom: '24px' }}>
-              <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent-amber)' }}>⚠️ Medical Disclaimer</div>
-              <p style={{ margin: '8px 0 0 0', fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.5' }}>{draft.disclaimer || "Always consult with a licensed doctor or pharmacist before starting a new medication routine."}</p>
-            </div>
-
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button 
-                onClick={handleApprove} 
-                disabled={loading}
-                style={{ flex: 1, padding: '18px', borderRadius: '16px', border: 'none', background: 'var(--accent-teal)', color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: '16px' }}
-              >
-                Approve & Save Schedule
-              </button>
-              <button 
-                onClick={() => setDraft(null)}
-                style={{ padding: '18px 30px', borderRadius: '16px', border: '1px solid var(--border-glass)', color: 'var(--text-muted)', fontWeight: 600, cursor: 'pointer', background: 'transparent' }}
-              >
-                Discard
-              </button>
+               <button onClick={handleApprove} style={{ flex: 1.5, padding: '16px', background: 'var(--accent-teal)', color: 'white', borderRadius: '14px', border: 'none', fontWeight: 800, cursor: 'pointer', fontSize: '15px' }}>Confirm & Save All</button>
+               <button onClick={() => setDraft(null)} style={{ flex: 1, padding: '16px', background: 'rgba(255,255,255,0.1)', color: 'white', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.2)', fontWeight: 700, cursor: 'pointer', fontSize: '14px' }}>Discard</button>
             </div>
           </motion.div>
         )}

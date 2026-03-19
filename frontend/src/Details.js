@@ -3,76 +3,80 @@ import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
-const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5001/api";
+const API_BASE = (process.env.REACT_APP_API_URL || "http://localhost:5001") + "/api";
 
 const Details = () => {
   const [medications, setMedications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [showModal, setShowModal] = useState(null); // 'add' or 'edit'
+  const [currentMed, setCurrentMed] = useState(null);
   const [interactionResults, setInteractionResults] = useState(null);
   const navigate = useNavigate();
-  const userId = localStorage.getItem("userId");
+  
+  // SANITY CHECK: Clean the ID
+  let rawId = localStorage.getItem("userId");
+  const userId = (rawId && rawId.includes("[object")) ? null : rawId;
 
   const [formData, setFormData] = useState({
-    name: "",
-    dosage: "",
-    unit: "mg",
-    frequency: "Daily",
-    mealTiming: "After meal",
-    notes: ""
+    name: "", dosage: "", unit: "mg", frequency: "Daily", mealTiming: "After meal", notes: ""
   });
 
   useEffect(() => {
-    if (!userId) {
-      navigate("/login");
-      return;
-    }
+    if (!userId) { navigate("/login"); return; }
     fetchMedications();
-  }, [userId, navigate]);
+  }, [userId]);
 
   const fetchMedications = async () => {
     setLoading(true);
     try {
       const res = await axios.get(`${API_BASE}/medications?userId=${userId}`);
       setMedications(res.data);
-      checkInteractions(res.data.map(m => m.name));
-    } catch (error) {
-      console.error("Error fetching medications:", error);
-    } finally {
-      setLoading(false);
-    }
+      if (res.data.length > 1) checkInteractions(res.data.map(m => m.name));
+    } catch (error) { console.error(error); } finally { setLoading(false); }
   };
 
   const checkInteractions = async (names) => {
-    if (names.length < 2) return;
     try {
       const res = await axios.post(`${API_BASE}/check-interaction`, { medications: names });
       setInteractionResults(res.data);
-    } catch (error) {
-      console.error("Interaction check failed:", error);
-    }
+    } catch (e) {}
   };
 
-  const handleSubmit = async (e) => {
+  const openEdit = (med) => {
+    setCurrentMed(med);
+    setFormData({ 
+      name: med.name, dosage: med.dosage, unit: med.unit, 
+      frequency: med.frequency, mealTiming: med.mealTiming, notes: med.notes || "" 
+    });
+    setShowModal('edit');
+  };
+
+  const handleSave = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(`${API_BASE}/medications`, { ...formData, userId });
-      setShowAddModal(false);
-      setFormData({ name: "", dosage: "", unit: "mg", frequency: "Daily", mealTiming: "After meal", notes: "" });
+      if (showModal === 'edit') {
+        await axios.put(`${API_BASE}/medications/${currentMed._id}`, formData);
+      } else {
+        await axios.post(`${API_BASE}/medications`, { ...formData, userId });
+      }
+      setShowModal(null);
       fetchMedications();
-    } catch (error) {
-      console.error("Error adding medication:", error);
-    }
+    } catch (e) { console.error(e); }
+  };
+
+  const toggleActive = async (med) => {
+    try {
+      await axios.put(`${API_BASE}/medications/${med._id}`, { isActive: !med.isActive });
+      fetchMedications();
+    } catch (e) {}
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this medication?")) return;
+    if (!window.confirm("Are you sure?")) return;
     try {
       await axios.delete(`${API_BASE}/medications/${id}`);
       fetchMedications();
-    } catch (error) {
-      console.error("Error deleting medication:", error);
-    }
+    } catch (e) {}
   };
 
   return (
@@ -82,155 +86,79 @@ const Details = () => {
           <h1>💊 My Medications</h1>
           <p style={{ color: "var(--text-muted)" }}>Manage your active prescriptions and check for interactions.</p>
         </div>
-        <button 
-          className="glass-card-premium" 
-          style={{ background: 'var(--accent-blue)', color: 'white', border: 'none', padding: '12px 24px', fontWeight: 600, cursor: 'pointer' }}
-          onClick={() => setShowAddModal(true)}
-        >
+        <button className="glass-card-premium" style={{ background: 'var(--accent-blue)', color: 'white', border: 'none', padding: '12px 24px', fontWeight: 600, cursor: 'pointer' }}
+          onClick={() => { setFormData({name: "", dosage: "", unit: "mg", frequency: "Daily", mealTiming: "After meal", notes: ""}); setShowModal('add'); }}>
           + Add Medication
         </button>
       </header>
 
-      {interactionResults && interactionResults.interactions && (
-        <motion.div 
-          className="glass-card-premium" 
-          style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #EF4444', marginBottom: '32px' }}
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
+      {interactionResults?.interactions && (
+        <motion.div className="glass-card-premium" style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #EF4444', marginBottom: '32px' }}>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
             <span style={{ fontSize: '24px' }}>⚠️</span>
             <div>
-              <h4 style={{ color: '#B91C1C', margin: 0 }}>Interaction Warning Detected</h4>
-              <p style={{ fontSize: '14px', color: '#7F1D1D', marginTop: '4px' }}>
-                {interactionResults.message}
-              </p>
+              <h4 style={{ color: '#B91C1C', margin: 0 }}>Interaction Detected</h4>
+              <p style={{ fontSize: '14px', color: '#7F1D1D', marginTop: '4px' }}>{interactionResults.message}</p>
             </div>
           </div>
         </motion.div>
       )}
 
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '100px' }}>Loading medications...</div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px' }}>
+      {loading ? <p>Loading...</p> : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
           {medications.map((med) => (
-            <motion.div 
-              key={med._id} 
-              className="glass-card-premium"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              whileHover={{ y: -5 }}
-            >
+            <motion.div key={med._id} className="glass-card-premium" style={{ opacity: med.isActive ? 1 : 0.6, padding: '24px', position: 'relative', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
-                  💊
-                </div>
-                <button 
-                  onClick={() => handleDelete(med._id)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.3 }}
-                >
-                  🗑️
-                </button>
+                 <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>
+                    💊
+                 </div>
+                 <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={() => openEdit(med)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', opacity: 0.5 }}>✏️</button>
+                    <button onClick={() => handleDelete(med._id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', opacity: 0.3 }}>🗑️</button>
+                 </div>
               </div>
               
-              <h3 style={{ marginTop: '16px', marginBottom: '8px' }}>{med.name}</h3>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
-                <span className="pill-status" style={{ background: '#F1F5F9' }}>{med.dosage} {med.unit}</span>
-                <span className="pill-status" style={{ background: '#F1F5F9' }}>{med.frequency}</span>
-                <span className="pill-status" style={{ background: '#F1F5F9' }}>{med.mealTiming}</span>
+              <div style={{ textAlign: 'left' }}>
+                 <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '4px' }}>{med.name}</h3>
+                 <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>🕗 {med.mealTiming}</p>
               </div>
               
-              {med.notes && (
-                <p style={{ fontSize: '13px', color: 'var(--text-muted)', borderTop: '1px solid rgba(0,0,0,0.05)', paddingTop: '12px' }}>
-                  {med.notes}
-                </p>
-              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                 <div style={{ display: 'flex', gap: '8px' }}>
+                    <span className="pill-status" style={{ background: 'var(--accent-blue)', color: 'white', padding: '5px 12px', borderRadius: '10px', fontSize: '11px', fontWeight: 800 }}>{med.dosage} {med.unit}</span>
+                    <span className="pill-status" style={{ background: 'rgba(56, 189, 248, 0.1)', color: 'var(--accent-blue)', border: '1px solid rgba(56,189,248,0.2)', padding: '5px 12px', borderRadius: '10px', fontSize: '11px', fontWeight: 800 }}>{med.frequency}</span>
+                 </div>
+                 <button onClick={() => toggleActive(med)} style={{ padding: '6px 12px', borderRadius: '10px', border: `1px solid ${med.isActive ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`, background: 'transparent', cursor: 'pointer', fontSize: '10px', fontWeight: 800, color: med.isActive ? '#10B981' : '#EF4444', textTransform: 'uppercase' }}>
+                    {med.isActive ? "● Active" : "● Paused"}
+                 </button>
+              </div>
             </motion.div>
           ))}
-          
-          {medications.length === 0 && (
-            <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '64px', color: 'var(--text-muted)' }}>
-              No medications added yet. Click "+ Add Medication" to start.
-            </div>
-          )}
         </div>
       )}
 
-      {/* Add Modal */}
+      {/* 🔹 EDIT / ADD MODAL */}
       <AnimatePresence>
-        {showAddModal && (
-          <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, background: 'rgba(0,0,0,0.2)', backdropFilter: 'blur(8px)' }}>
-            <motion.div 
-              className="glass-card-premium" 
-              style={{ width: '100%', maxWidth: '500px', padding: '32px' }}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-            >
-              <h2 style={{ marginBottom: '24px' }}>Add Medication</h2>
-              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Medicine Name</label>
-                  <input 
-                    required 
-                    type="text" 
-                    placeholder="e.g. Advil" 
-                    style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #E2E8F0', outline: 'none' }}
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  />
+        {showModal && (
+          <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
+            <motion.div className="glass-card-premium" style={{ width: '100%', maxWidth: '500px', padding: '40px', background: 'white' }} initial={{ scale: 0.9 }} animate={{ scale: 1 }}>
+              <h2 style={{ marginBottom: '32px' }}>{showModal === 'edit' ? "✏️ Edit Medication" : "➕ Add Medication"}</h2>
+              <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div className="form-group">
+                  <label className="label-input" style={{ fontSize: '13px', fontWeight: 700 }}>Medicine Name</label>
+                  <input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #E2E8F0' }} />
                 </div>
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Dosage</label>
-                    <input 
-                      required 
-                      type="text" 
-                      placeholder="e.g. 200" 
-                      style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #E2E8F0', outline: 'none' }}
-                      value={formData.dosage}
-                      onChange={(e) => setFormData({...formData, dosage: e.target.value})}
-                    />
-                  </div>
-                  <div style={{ width: '100px' }}>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Unit</label>
-                    <select 
-                      style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #E2E8F0', outline: 'none', background: 'white' }}
-                      value={formData.unit}
-                      onChange={(e) => setFormData({...formData, unit: e.target.value})}
-                    >
-                      <option>mg</option>
-                      <option>mcg</option>
-                      <option>ml</option>
-                      <option>tablet</option>
-                    </select>
-                  </div>
+                <div style={{ display: 'flex', gap: '16px' }}>
+                  <div style={{ flex: 1 }}><label style={{ fontSize: '13px', fontWeight: 700 }}>Dosage</label><input required value={formData.dosage} onChange={e => setFormData({...formData, dosage: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #E2E8F0' }} /></div>
+                  <div style={{ width: '100px' }}><label style={{ fontSize: '13px', fontWeight: 700 }}>Unit</label><select value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #E2E8F0', background: 'white' }}><option>mg</option><option>tablet</option></select></div>
                 </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Notes (optional)</label>
-                  <textarea 
-                    placeholder="Heart disease, take with water" 
-                    style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #E2E8F0', outline: 'none', resize: 'none', height: '80px' }}
-                    value={formData.notes}
-                    onChange={(e) => setFormData({...formData, notes: e.target.value})}
-                  />
+                <div style={{ display: 'flex', gap: '16px' }}>
+                   <div style={{ flex: 1 }}><label style={{ fontSize: '13px', fontWeight: 700 }}>Frequency</label><select value={formData.frequency} onChange={e => setFormData({...formData, frequency: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #E2E8F0', background: 'white' }}><option>Daily</option><option>Twice Daily</option></select></div>
+                   <div style={{ flex: 1 }}><label style={{ fontSize: '13px', fontWeight: 700 }}>Meal Timing</label><select value={formData.mealTiming} onChange={e => setFormData({...formData, mealTiming: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #E2E8F0', background: 'white' }}><option>After meal</option><option>Before meal</option></select></div>
                 </div>
-                
-                <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
-                  <button 
-                    type="button" 
-                    onClick={() => setShowAddModal(false)}
-                    style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #E2E8F0', background: 'white', fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit"
-                    style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', background: 'var(--accent-blue)', color: 'white', fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    Save Medication
-                  </button>
+                <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
+                   <button type="button" onClick={() => setShowModal(null)} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #E2E8F0', fontWeight: 600 }}>Cancel</button>
+                   <button type="submit" style={{ flex: 2, padding: '14px', borderRadius: '12px', border: 'none', background: 'var(--accent-blue)', color: 'white', fontWeight: 700 }}>Update Medication</button>
                 </div>
               </form>
             </motion.div>
