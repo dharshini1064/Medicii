@@ -14,7 +14,7 @@ const SignUp = () => {
     e.preventDefault();
     setError("");
     try {
-      await axios.post("http://localhost:5001/signup", { name, email, password });
+      await axios.post(`${process.env.REACT_APP_API_URL || "http://localhost:5001"}/signup`, { name, email, password });
       alert("✅ Account created successfully!");
       navigate("/login");
     } catch (err) {

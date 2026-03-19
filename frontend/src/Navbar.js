@@ -24,7 +24,7 @@ const Navbar = ({ theme, toggleTheme }) => {
   const handleSOS = async () => {
     if (!window.confirm("🚨 SOS ALERT? \nEmergency contacts will be notified.")) return;
     try {
-      await axios.post("http://localhost:5001/api/send-sos", { userId, timestamp: new Date() });
+      await axios.post(`${process.env.REACT_APP_API_URL || "http://localhost:5001"}/api/send-sos`, { userId, timestamp: new Date() });
       alert("✅ SOS Sent!");
     } catch (e) { alert("❌ Failed to send SOS"); }
   };

@@ -20,7 +20,7 @@ const AIScheduleAssistant = () => {
     setLoading(true);
     setDraft(null);
     try {
-      const res = await axios.post("http://localhost:5001/api/ai/schedule", { prompt });
+      const res = await axios.post(`${process.env.REACT_APP_API_URL || "http://localhost:5001"}/api/ai/schedule`, { prompt });
       setDraft(res.data);
     } catch (error) {
       console.error("Failed to generate schedule", error);
@@ -32,7 +32,7 @@ const AIScheduleAssistant = () => {
   const handleApprove = async () => {
     setLoading(true);
     try {
-      await axios.post("http://localhost:5001/api/ai/schedule/approve", {
+      await axios.post(`${process.env.REACT_APP_API_URL || "http://localhost:5001"}/api/ai/schedule/approve`, {
         draftSchedule: draft.draftSchedule,
         userId: userId
       });

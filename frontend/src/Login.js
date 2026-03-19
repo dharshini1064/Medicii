@@ -13,7 +13,7 @@ const Login = () => {
     e.preventDefault();
     setError("");
     try {
-      const res = await axios.post("http://localhost:5001/login", { email, password });
+      const res = await axios.post(`${process.env.REACT_APP_API_URL || "http://localhost:5001"}/login`, { email, password });
       localStorage.setItem("userId", res.data.userId);
       localStorage.setItem("userName", res.data.userName);
       navigate("/dashboard");

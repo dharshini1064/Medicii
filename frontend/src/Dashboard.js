@@ -3,7 +3,7 @@ import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
-const API = "http://localhost:5001";
+const API = process.env.REACT_APP_API_URL || "http://localhost:5001";
 
 function Dashboard() {
   const navigate = useNavigate();

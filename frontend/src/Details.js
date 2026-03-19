@@ -3,7 +3,7 @@ import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
-const API_BASE = "http://localhost:5001/api";
+const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5001/api";
 
 const Details = () => {
   const [medications, setMedications] = useState([]);
@@ -46,7 +46,7 @@ const Details = () => {
   const checkInteractions = async (names) => {
     if (names.length < 2) return;
     try {
-      const res = await axios.post(`http://localhost:5001/api/check-interaction`, { medications: names });
+      const res = await axios.post(`${API_BASE}/check-interaction`, { medications: names });
       setInteractionResults(res.data);
     } catch (error) {
       console.error("Interaction check failed:", error);
