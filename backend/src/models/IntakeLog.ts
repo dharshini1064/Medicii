@@ -19,9 +19,9 @@ const IntakeLogSchema = new Schema<IIntakeLog>(
     loggedAt: { type: Date },
     status: {
       type: String,
-      enum: ["taken", "missed", "skipped"],
+      enum: ["taken", "missed", "skipped", "pending"],
       required: true,
-      default: "missed",
+      default: "pending",
     },
     source: { type: String, required: true },
   },

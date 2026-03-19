@@ -1,71 +1,64 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import axios from "axios";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Login Submitted:", { email, password });
-    window.location.href = "/dashboard";
+    setError("");
+    try {
+      const res = await axios.post("http://localhost:5001/login", { email, password });
+      localStorage.setItem("userId", res.data.userId);
+      localStorage.setItem("userName", res.data.userName);
+      navigate("/dashboard");
+    } catch (err) {
+      setError(err.response?.data?.message || "Login failed.");
+    }
   };
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', padding: '20px' }}>
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', padding: '24px' }}>
       <motion.div 
         className="glass-card-premium" 
-        style={{ width: '100%', maxWidth: '440px', padding: '48px' }}
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
+        style={{ width: '100%', maxWidth: '420px', padding: '40px' }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
       >
-        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-          <div className="logo-heart" style={{ margin: '0 auto 24px', display: 'flex' }}>
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <div className="logo-heart" style={{ margin: '0 auto 20px' }}>
             <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
               <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.75 3c1.553 0 2.946.643 3.935 1.674C12.67 3.643 14.063 3 15.615 3c3.037 0 5.501 2.322 5.501 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
             </svg>
           </div>
-          <h2 style={{ fontSize: '32px', fontWeight: 700, margin: 0 }}>Welcome Back</h2>
-          <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>Manage your health with precision.</p>
+          <h2 style={{ fontSize: '28px', fontWeight: 700 }}>Welcome Back</h2>
+          <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>Continue your health journey.</p>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, marginBottom: '8px', color: 'var(--text-active)' }}>Email Address</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="glass-card-premium"
-              style={{ width: '100%', padding: '16px', background: 'rgba(255,255,255,0.5)', border: '1px solid #E2E8F0', borderRadius: '16px', fontSize: '16px' }}
-              placeholder="name@company.com"
-            />
+        {error && <div style={{ padding: '12px', background: '#FEE2E2', color: '#DC2626', borderRadius: '12px', marginBottom: '20px', fontSize: '14px' }}>{error}</div>}
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Email Address</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="john@example.com" />
           </div>
-          <div style={{ marginBottom: '32px' }}>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, marginBottom: '8px', color: 'var(--text-active)' }}>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="glass-card-premium"
-              style={{ width: '100%', padding: '16px', background: 'rgba(255,255,255,0.5)', border: '1px solid #E2E8F0', borderRadius: '16px', fontSize: '16px' }}
-              placeholder="••••••••"
-            />
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Password</label>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" />
           </div>
-          <button 
-            type="submit" 
-            style={{ width: '100%', padding: '16px', background: 'var(--accent-blue)', color: 'white', border: 'none', borderRadius: '16px', fontSize: '16px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.3s ease' }}
-          >
-            Sign In
+          <button type="submit" style={{ width: '100%', padding: '16px', background: 'var(--accent-blue)', color: 'white', border: 'none', borderRadius: '14px', fontSize: '16px', fontWeight: 700, cursor: 'pointer', marginTop: '12px', transition: 'all 0.3s ease' }}>
+            Log In
           </button>
         </form>
 
-        <div style={{ textAlign: 'center', marginTop: '32px', fontSize: '14px' }}>
+        <div style={{ textAlign: 'center', marginTop: '24px', fontSize: '14px' }}>
           <span style={{ color: 'var(--text-muted)' }}>Don't have an account? </span>
-          <Link to="/" style={{ color: 'var(--accent-blue)', fontWeight: 600, textDecoration: 'none' }}>Create Account</Link>
+          <Link to="/" style={{ color: 'var(--accent-blue)', fontWeight: 600, textDecoration: 'none' }}>Sign Up</Link>
         </div>
       </motion.div>
     </div>

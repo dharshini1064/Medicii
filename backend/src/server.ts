@@ -5,6 +5,11 @@ import bcrypt from "bcrypt";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 import listEndpoints from "express-list-endpoints";
+import dns from "dns";
+
+// Force Google DNS — local ISP DNS doesn't support SRV records needed by MongoDB Atlas
+dns.setServers(["8.8.8.8", "8.8.4.4"]);
+
 
 // Routes
 import medicationRoutes from "./routes/medicationRoutes";
@@ -32,8 +37,9 @@ app.use(cors());
 app.use(express.json());
 
 // **🔹 MongoDB Connection**
+const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/medicine_tracker";
 mongoose
-  .connect("mongodb://127.0.0.1:27017/medicine_tracker")
+  .connect(MONGO_URI)
   .then(() => {
     console.log("✅ MongoDB connected");
     // Start background jobs
@@ -129,7 +135,7 @@ app.post("/login", async (req, res) => {
       const isMatch = await bcrypt.compare(password, user.password as string);
       if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
       
-      res.json({ message: "Login successful", userId: user._id, email: user.email });
+      res.json({ message: "Login successful", userId: user._id, email: user.email, userName: user.name || "User" });
     } catch (error) {
       res.status(500).json({ message: "Login error", error });
     }

@@ -11,11 +11,19 @@ import AIScheduleAssistant from "./AIScheduleAssistant";
 
 function AppContent() {
   const location = useLocation();
+  const [theme, setTheme] = React.useState(localStorage.getItem("theme") || "light");
   const hideSidebar = location.pathname === "/" || location.pathname === "/login";
+
+  useEffect(() => {
+    document.body.setAttribute("data-theme", theme);
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(prev => prev === "light" ? "dark" : "light");
 
   return (
     <div className="layout-wrapper">
-      {!hideSidebar && <Navbar />}
+      {!hideSidebar && <Navbar theme={theme} toggleTheme={toggleTheme} />}
       <main className="content-area" style={{ padding: hideSidebar ? 0 : '40px' }}>
         <Routes>
           <Route path="/" element={<SignUp />} />
@@ -32,11 +40,9 @@ function AppContent() {
 
 function App() {
   useEffect(() => {
-    // Ask for notification permission
-    if (Notification.permission !== "granted") {
-      Notification.requestPermission().then((permission) => {
-        console.log(`Notification permission: ${permission}`);
-      });
+    // Ask for notification permission early
+    if ("Notification" in window && Notification.permission !== "granted") {
+      Notification.requestPermission();
     }
   }, []);
 
